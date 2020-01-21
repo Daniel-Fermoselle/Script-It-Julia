@@ -1,5 +1,5 @@
 module ScriptIt
-export startScript
+export startScript, toggle_unique_key_backend
 
 using Juno
 using Atom
@@ -8,16 +8,26 @@ using JuliaInterpreter
 using Core
 
 isControlFlow = true #true = control flow, false = last call
+is_autocad = false #to be used for the unique_key function in order to check reverseHighlight
+
+function toggle_unique_key_backend()
+    global is_autocad=!is_autocad
+    @info "Unique key for: $(is_autocad ? "autocad backend" : "all backends except autocad")."
+end
+
+function script_it_start()
+    @info "Welcome to ScriptIt! If you need help press ctrl+alt+h."
+end
 
 function extractCode(filePath)
     beforeAll = time()
-    backend(autocad)
+    #backend(autocad)
     f=  with(traceability, false) do
             all_shapes()
         end
     s=""
     adToolString = "using Khepri"
-    backendString = "backend(autocad)\ndelete_all_shapes()\nclear_trace!()"
+    backendString = "delete_all_shapes()\nclear_trace!()"
     s = string(adToolString,"\n",backendString, "\n")
     temp_range_to_shape_Dictionary = Dict()
     for el in f
@@ -84,6 +94,7 @@ function reverseHighlight()
     end
     actualCodeLinesHighlighted = unique(actualCodeLinesHighlighted)
     fileAndLinesToHighlight = convertToDictAndToList(actualCodeLinesHighlighted)
+    #println("files and lines to highlight: ", fileAndLinesToHighlight)
     return fileAndLinesToHighlight
 end
 
@@ -117,7 +128,11 @@ function convertToDictAndToList(list)
 end
 
 function unique_key(shape) #TODO improve this thing with AML
-    Khepri.ACADGetHandleFromShape(connection(current_backend()), Khepri.ref(shape).value)
+    if is_autocad
+        Khepri.ACADGetHandleFromShape(connection(current_backend()), Khepri.ref(shape).value)
+    else
+        shape
+    end
 end
 
 function isEmpty()
@@ -137,6 +152,14 @@ function startScript()
     Atom.handle(toggleFreeForAllRefactoring, "toggleFreeForAllRefactoring")
     Atom.handle(reverseHighlight, "reverseHighlight")
     Atom.handle(isEmpty, "isEmpty")
+    Atom.handle(script_it_start, "script_it_start")
+end
+
+function __init__()
+    @eval Main using Khepri
+    traceability(true)
+    excluded_modules([Base, Khepri, Atom, Atom.CodeTools, Base.CoreLogging,ScriptIt])
+    ScriptIt.startScript()
 end
 
 end # module
